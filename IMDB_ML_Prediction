@@ -1,0 +1,199 @@
+# %% [markdown]
+# 1 IMPORTAR LIBRERIAS
+# 
+
+# %% [markdown]
+# Nuestro Input(x) va a ser los comentarios(review)
+# Nuestro Output(y) va a ser los sentimientos(sentiment)
+
+# %%
+import pandas as pd
+import imblearn as imb
+import sklearn as sk
+
+# %% [markdown]
+# ESTE DATASET TIENE 2 COLUMNAS "review" Y "sentiment" y 50000 Filas
+
+# %%
+df_review = pd.read_csv("IMDB Dataset.csv")
+df_review
+
+# %% [markdown]
+# Pero para entrenar este modelo que vamos a desarrollar vamos a usar 9000 reseñas positivas y 1000 negativas para desbalancearla
+
+# %%
+df_positivo = df_review[df_review["sentiment"] == "positive"] [:9000]
+df_negativo = df_review[df_review["sentiment"] == "negative"] [:1000]
+
+# %% [markdown]
+# creamos un nuevo datset desbalanceado
+# 
+
+# %%
+df_review_desbalanceado = pd.concat([df_positivo, df_negativo])
+df_review_desbalanceado.value_counts("sentiment")  
+
+# %% [markdown]
+# DATASET DESBALANCEADO
+
+# %% [markdown]
+# LO que vamos a hacer es balancear la data con una libreria "imbLearn"
+# Usaremos undersampling para disminuir la Data con mayor informacion para bajarla al mismo nivel que la otra
+
+# %%
+from imblearn.under_sampling import RandomUnderSampler
+rus = RandomUnderSampler()
+df_review_balanceado, df_review_balanceado["sentiment"] = rus.fit_resample(df_review_desbalanceado[["review"]], df_review_desbalanceado["sentiment"])
+df_review_balanceado.value_counts(["sentiment"])
+
+# %% [markdown]
+# Ahora lo que vamos a hacer es separar la data para entrenar (train) y la data para testear (test)
+
+# %%
+from sklearn.model_selection import train_test_split
+train, test = train_test_split(df_review_balanceado, test_size=0.33, random_state=42)
+train_x, train_y = train["review"], train["sentiment"] 
+test_x, test_y = test["review"], test["sentiment"]
+
+
+# %% [markdown]
+# Con esto tenemos asignadas el input y el output para entrenar y testear
+
+# %% [markdown]
+# # REPRESENTACION DE TEXTO (BAGS OF WORDS)
+# 
+
+# %% [markdown]
+# - CountVectorizer = La frecuencia en la cual una palabra aparece en una oracion
+# - Tfidf = es la relevancia que tiene una palabra dentro de una oracion que no este repetida en los otros reviews
+# 
+
+# %% [markdown]
+# # Transormar data de texto a data numerica
+# 
+
+# %%
+from sklearn.feature_extraction.text import TfidfVectorizer
+Tfdif = TfidfVectorizer(stop_words="english")
+train_x_vector = Tfdif.fit_transform(train_x)
+test_x_vector = Tfdif.transform(test_x)
+
+# %% [markdown]
+# # Ahora usaremos MACHINE LEARNING
+# 
+
+# %% [markdown]
+# Usaremos Aprendizaje Supervisado -> Clasificacion -> SVM, Arbol de decisión, Naive Bayes, Regresión Logística
+
+# %% [markdown]
+# SUPPOR VECTOR MACHINES (SVM)
+# 
+
+# %%
+from sklearn.svm import SVC 
+svc = SVC(kernel="linear")
+svc.fit(train_x_vector, train_y)
+
+
+# %% [markdown]
+# Testeo (SVM)
+
+# %%
+print(svc.predict(Tfdif.transform(["This movie is amazing"])))
+print(svc.predict(Tfdif.transform(["This movie is terrible"])))
+print(svc.predict(Tfdif.transform(["I did not like this movie at all"])))
+
+# %% [markdown]
+# ARBOL DE DECISION
+
+# %%
+from sklearn.tree import DecisionTreeClassifier
+dec_tree = DecisionTreeClassifier()
+dec_tree.fit(train_x_vector, train_y)
+
+
+# %% [markdown]
+#  NAIVE BAYES
+
+# %%
+from sklearn.naive_bayes import GaussianNB
+gnb = GaussianNB()
+gnb.fit(train_x_vector.toarray(), train_y)
+
+# %% [markdown]
+# REGRESION LOGISTICA
+# 
+
+# %%
+from sklearn.linear_model import LogisticRegression
+lr = LogisticRegression()
+lr.fit(train_x_vector, train_y)
+
+
+
+# %% [markdown]
+# EVALUACION DE MODELOS
+# 
+
+# %% [markdown]
+# Score (Accuracy)
+# 
+
+# %%
+print(svc.score(test_x_vector, test_y))
+print(dec_tree.score(test_x_vector, test_y))
+print(gnb.score(test_x_vector.toarray(), test_y))
+print(lr.score(test_x_vector, test_y))
+
+
+# %% [markdown]
+# Queda evidenciado que el modelo de evaluacion svc quedo con mayor porcentaje de precision(0.8545454545454545)
+
+# %% [markdown]
+# F1 Score
+
+# %% [markdown]
+# F1 Score = 2(Recall * Precission) / (Recall + Precission)
+
+# %%
+from sklearn.metrics import f1_score
+f1_score(test_y, svc.predict(test_x_vector), labels=["positive", "negative"], average=None)
+
+# %% [markdown]
+# Reporte de Clasificación
+# 
+
+# %%
+from sklearn.metrics import classification_report
+print(classification_report(test_y, svc.predict(test_x_vector), labels=["positive", "negative"],))
+
+# %% [markdown]
+# Confusion Matrix
+# 
+
+# %%
+from sklearn.metrics import confusion_matrix
+confusion_matrix(test_y, svc.predict(test_x_vector), labels=["positive", "negative"])
+
+# %% [markdown]
+# - [TruePositives  FalsePositives]
+# - [FalseNegatives  TrueNegatives]
+
+# %% [markdown]
+# # Optimizacion del modelo
+
+# %%
+from sklearn.model_selection import GridSearchCV
+parametros = {"C":[1,4,8,16,32], "kernel":["linear", "rbf",]}
+svc = SVC()
+clf = GridSearchCV(svc, parametros)
+svc_grid = GridSearchCV(svc, parametros, cv=5)
+svc_grid.fit(train_x_vector, train_y)
+
+# %%
+print(svc_grid.best_estimator_)
+print(svc_grid.best_params_)
+
+
+# %%
+print(svc_grid.best_score_)
